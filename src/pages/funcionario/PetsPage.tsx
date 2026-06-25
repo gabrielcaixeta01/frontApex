@@ -51,6 +51,7 @@ export default function PetsPage() {
   const { lojaId } = useFuncionarioStore();
 
   const [pets, setPets] = useState<Pet[]>([]);
+  const [locallyVisiblePetIds, setLocallyVisiblePetIds] = useState<number[]>([]);
   const [petBeingEdited, setPetBeingEdited] = useState<Pet | null>(null);
   const [atendimentos, setAtendimentos] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,8 +96,10 @@ export default function PetsPage() {
   }, [atendimentos, lojaId]);
 
   const visiblePets = useMemo(
-    () => petIdsNaLoja != null ? pets.filter((p) => petIdsNaLoja.has(p.id)) : pets,
-    [pets, petIdsNaLoja],
+    () => petIdsNaLoja != null
+      ? pets.filter((p) => petIdsNaLoja.has(p.id) || locallyVisiblePetIds.includes(p.id))
+      : pets,
+    [pets, petIdsNaLoja, locallyVisiblePetIds],
   );
 
   const speciesCounts = useMemo(() => {
@@ -124,7 +127,13 @@ export default function PetsPage() {
   }, [visiblePets, speciesFilter, search, categoriasById, donosById]);
 
   async function handleCreatePet(data: CreatePetDTO) {
-    try { await createPet(data); setFeedback("Pet cadastrado com sucesso."); setShowForm(false); await loadAll(); }
+    try {
+      const createdPet = await createPet(data);
+      setLocallyVisiblePetIds((current) => current.includes(createdPet.id) ? current : [...current, createdPet.id]);
+      setFeedback("Pet cadastrado com sucesso.");
+      setShowForm(false);
+      await loadAll();
+    }
     catch { setError("Erro ao cadastrar pet."); }
   }
   async function handleUpdatePet(id: number, data: UpdatePetDTO) {
@@ -133,7 +142,13 @@ export default function PetsPage() {
   }
   async function handleDeletePet(id: number) {
     if (!window.confirm("Tem certeza que deseja excluir este pet?")) return;
-    try { await deletePet(id); setFeedback("Pet excluído com sucesso."); if (petBeingEdited?.id === id) setPetBeingEdited(null); await loadAll(); }
+    try {
+      await deletePet(id);
+      setLocallyVisiblePetIds((current) => current.filter((petId) => petId !== id));
+      setFeedback("Pet excluído com sucesso.");
+      if (petBeingEdited?.id === id) setPetBeingEdited(null);
+      await loadAll();
+    }
     catch { setError("Erro ao excluir pet."); }
   }
 
